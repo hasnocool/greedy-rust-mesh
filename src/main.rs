@@ -15,6 +15,7 @@ use glutin_winit::GlWindow;
 use glow::HasContext;
 use raw_window_handle::HasWindowHandle;
 use rayon::prelude::*;
+use std::env;
 use std::rc::Rc;
 use std::num::NonZeroU32;
 use std::path::PathBuf;
@@ -27,7 +28,42 @@ use winit::window::{CursorGrabMode, WindowAttributes};
 
 const WINDOW_WIDTH: u32 = 1920;
 const WINDOW_HEIGHT: u32 = 1080;
-const DEMO_LEVEL_FILE: &str = "demo_terrain_96";
+const DEFAULT_LEVEL_REL: &str = "levels/demo_terrain_96";
+
+fn resolve_level_path() -> Result<PathBuf> {
+    // Usage:
+    //   cargo run -- [--level <path>]
+    //   cargo run -- -l <path>
+    // Paths that are not absolute are resolved relative to the crate root.
+    let mut args = env::args().skip(1);
+    let mut level: Option<PathBuf> = None;
+
+    while let Some(a) = args.next() {
+        match a.as_str() {
+            "--level" | "-l" => {
+                level = Some(PathBuf::from(
+                    args.next().ok_or_else(|| anyhow::anyhow!("{a} requires a path"))?,
+                ));
+            }
+            "--help" | "-h" => {
+                eprintln!(
+                    "Usage: binary_greedy_mesher_demo_rs [--level <path>]\n\nDefault: {DEFAULT_LEVEL_REL}\n"
+                );
+                std::process::exit(0);
+            }
+            _ => {
+                // Ignore unknown args for now to avoid breaking existing workflows.
+            }
+        }
+    }
+
+    let level = level.unwrap_or_else(|| PathBuf::from(DEFAULT_LEVEL_REL));
+    if level.is_absolute() {
+        Ok(level)
+    } else {
+        Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(level))
+    }
+}
 
 const VERT_SRC: &str = r#"#version 460 core
 
@@ -225,11 +261,7 @@ fn main() -> Result<()> {
     let mut renderer = ChunkRenderer::new(&gl).context("create renderer")?;
 
     // --- Load level file ---
-    let level_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("levels")
-        .join(DEMO_LEVEL_FILE);
-
+    let level_path = resolve_level_path()?;
     let mut level = LevelFile::default();
     level.load_from_file(&level_path)?;
 
