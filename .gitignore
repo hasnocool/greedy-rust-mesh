@@ -1,0 +1,11 @@
+.env
+.env.*
+
+# Rust build output
+/target/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
